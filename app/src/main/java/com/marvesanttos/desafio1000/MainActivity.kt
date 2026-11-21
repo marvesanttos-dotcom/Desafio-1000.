@@ -163,34 +163,60 @@ class MainActivity : Activity() {
     }
 
     private fun chooseBackgroundColor() {
+        val colors = arrayOf(
+            "Branco", "Cinza claro", "Preto", "Azul claro", "Azul", "Verde claro",
+            "Verde", "Amarelo claro", "Amarelo", "Rosa claro", "Rosa", "Lilás",
+            "Roxo", "Bege", "Laranja", "Outra cor (código)"
+        )
+        val hexes = arrayOf(
+            "#FFFFFF", "#F1F3F5", "#202124", "#E3F2FD", "#D6E8FF", "#E8F5E9",
+            "#D7F5DF", "#FFFDE7", "#FFF3B0", "#FCE4EC", "#FFDCE8", "#F3E5F5",
+            "#E6D9FF", "#F4E8D8", "#FFE0B2"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Escolha uma cor para o fundo")
+            .setItems(colors) { _, which ->
+                if (which == colors.lastIndex) {
+                    chooseCustomBackgroundColor()
+                } else {
+                    prefs.edit().putString("background_color", hexes[which])
+                        .remove("background_image").apply()
+                    applyBackground()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun chooseCustomBackgroundColor() {
         val field = EditText(this).apply {
-            hint = "#FFFFFF (ex.: #F4E8D8)"
+            hint = "#FFFFFF"
             setSingleLine(true)
             setText(prefs.getString("background_color", "#FFFFFF"))
         }
         val box = LinearLayout(this).apply { setPadding(28, 8, 28, 0); addView(field) }
-        AlertDialog.Builder(this)
-            .setTitle("Cor do fundo")
-            .setMessage("Digite uma cor em formato hexadecimal.")
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Cor personalizada")
+            .setMessage("Digite o código da cor (ex.: #F4E8D8).")
             .setView(box)
-            .setNegativeButton("Cancelar", null)
+            .setNegativeButton("Voltar", null)
             .setPositiveButton("Aplicar", null)
-            .create().also { dialog ->
-                dialog.setOnShowListener {
-                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                        try {
-                            val color = Color.parseColor(field.text.toString().trim())
-                            val hex = String.format("#%06X", 0xFFFFFF and color)
-                            prefs.edit().putString("background_color", hex).remove("background_image").apply()
-                            applyBackground()
-                            dialog.dismiss()
-                        } catch (_: IllegalArgumentException) {
-                            field.error = "Use um código como #FFFFFF"
-                        }
-                    }
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                try {
+                    val color = Color.parseColor(field.text.toString().trim())
+                    val hex = String.format("#%06X", 0xFFFFFF and color)
+                    prefs.edit().putString("background_color", hex)
+                        .remove("background_image").apply()
+                    applyBackground()
+                    dialog.dismiss()
+                } catch (_: IllegalArgumentException) {
+                    field.error = "Código inválido. Exemplo: #FFFFFF"
                 }
-                dialog.show()
             }
+        }
+        dialog.show()
     }
 
     private fun chooseBackgroundImage() {
