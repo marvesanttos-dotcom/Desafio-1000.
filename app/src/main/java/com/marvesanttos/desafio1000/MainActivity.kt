@@ -8,6 +8,9 @@ import android.content.Intent
 import android.os.SystemClock
 import java.security.MessageDigest
 import android.graphics.Color
+import android.graphics.BitmapFactory
+import android.graphics.drawable.BitmapDrawable
+import android.net.Uri
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
@@ -29,6 +32,7 @@ class MainActivity : Activity() {
     private val records = mutableMapOf<Int, JSONObject>()
     private lateinit var grid: GridLayout
     private lateinit var summary: TextView
+    private lateinit var screenRoot: LinearLayout
     private val green = Color.rgb(35, 145, 75)
     private val blue = Color.rgb(35, 95, 170)
 
@@ -130,14 +134,116 @@ class MainActivity : Activity() {
     private fun showSettings() {
         AlertDialog.Builder(this)
             .setTitle("⚙️ Configurações")
-            .setItems(arrayOf("Alterar senha", "Como usar o aplicativo")) { _, which ->
+            .setItems(arrayOf("Alterar senha", "Personalizar fundo", "Como usar o aplicativo")) { _, which ->
                 when (which) {
                     0 -> changePin()
-                    1 -> showHowToUse()
+                    1 -> showBackgroundOptions()
+                    2 -> showHowToUse()
                 }
             }
             .setNegativeButton("Fechar", null)
             .show()
+    }
+
+    private fun showBackgroundOptions() {
+        AlertDialog.Builder(this)
+            .setTitle("Personalizar fundo")
+            .setItems(arrayOf("Escolher uma cor", "Escolher uma imagem", "Voltar ao branco")) { _, which ->
+                when (which) {
+                    0 -> chooseBackgroundColor()
+                    1 -> chooseBackgroundImage()
+                    2 -> {
+                        prefs.edit().remove("background_image").putString("background_color", "#FFFFFF").apply()
+                        applyBackground()
+                    }
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun chooseBackgroundColor() {
+        val field = EditText(this).apply {
+            hint = "#FFFFFF (ex.: #F4E8D8)"
+            setSingleLine(true)
+            setText(prefs.getString("background_color", "#FFFFFF"))
+        }
+        val box = LinearLayout(this).apply { setPadding(28, 8, 28, 0); addView(field) }
+        AlertDialog.Builder(this)
+            .setTitle("Cor do fundo")
+            .setMessage("Digite uma cor em formato hexadecimal.")
+            .setView(box)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Aplicar", null)
+            .create().also { dialog ->
+                dialog.setOnShowListener {
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                        try {
+                            val color = Color.parseColor(field.text.toString().trim())
+                            val hex = String.format("#%06X", 0xFFFFFF and color)
+                            prefs.edit().putString("background_color", hex).remove("background_image").apply()
+                            applyBackground()
+                            dialog.dismiss()
+                        } catch (_: IllegalArgumentException) {
+                            field.error = "Use um código como #FFFFFF"
+                        }
+                    }
+                }
+                dialog.show()
+            }
+    }
+
+    private fun chooseBackgroundImage() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        startActivityForResult(intent, 702)
+    }
+
+    private fun applyBackground() {
+        if (!::screenRoot.isInitialized) return
+        val image = prefs.getString("background_image", null)
+        if (image != null) {
+            try {
+                val uri = Uri.parse(image)
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+                val sample = BitmapFactory.Options().apply {
+                    inSampleSize = maxOf(1, minOf(bounds.outWidth / 1200, bounds.outHeight / 2000))
+                }
+                val bitmap = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, sample) }
+                if (bitmap != null) {
+                    screenRoot.background = BitmapDrawable(resources, bitmap).apply {
+                        gravity = Gravity.FILL
+                    }
+                    return
+                }
+            } catch (_: Exception) {
+                prefs.edit().remove("background_image").apply()
+            }
+        }
+        val color = try {
+            Color.parseColor(prefs.getString("background_color", "#FFFFFF") ?: "#FFFFFF")
+        } catch (_: Exception) { Color.WHITE }
+        screenRoot.setBackgroundColor(color)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 702 && resultCode == RESULT_OK) {
+            val uri = data?.data ?: return
+            try {
+                val flags = data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
+                contentResolver.takePersistableUriPermission(uri, flags)
+                prefs.edit().putString("background_image", uri.toString()).apply()
+                applyBackground()
+                Toast.makeText(this, "Imagem de fundo aplicada!", Toast.LENGTH_SHORT).show()
+            } catch (_: Exception) {
+                Toast.makeText(this, "Não foi possível usar essa imagem.", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun showHowToUse() {
@@ -162,11 +268,13 @@ class MainActivity : Activity() {
     }
 
     private fun buildScreen() {
-        val root = LinearLayout(this).apply {
+        screenRoot = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(18, 20, 18, 12)
             setBackgroundColor(Color.WHITE)
         }
+        val root = screenRoot
+        applyBackground()
         val title = TextView(this).apply {
             text = "DESAFIO 1000"
             textSize = 26f
