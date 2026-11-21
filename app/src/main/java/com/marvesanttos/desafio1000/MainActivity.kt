@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -84,18 +85,22 @@ class MainActivity : Activity() {
             val saved = records.containsKey(n)
             val cell = TextView(this).apply {
                 text = n.toString()
-                textSize = 14f
+                textSize = 28f
                 gravity = Gravity.CENTER
                 setTextColor(Color.WHITE)
                 setPadding(2, 2, 2, 2)
                 includeFontPadding = true
-                setBackgroundColor(if (saved) green else blue)
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(9).toFloat()
+                    setColor(if (saved) green else blue)
+                }
                 setOnClickListener { toggle(n) }
                 setOnLongClickListener { editRecord(n); true }
             }
             val params = GridLayout.LayoutParams().apply {
                 width = 0
-                height = 44
+                height = dp(44)
                 columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
                 setMargins(2, 2, 2, 2)
             }
@@ -103,6 +108,8 @@ class MainActivity : Activity() {
         }
         updateSummary()
     }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun updateSummary() {
         val total = records.keys.sum()
