@@ -4,6 +4,9 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Intent
+import android.os.SystemClock
+import java.security.MessageDigest
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -31,8 +34,97 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        loadRecords()
-        buildScreen()
+        if (prefs.getString("pin_hash", null) == null) setupPin() else loginPin()
+    }
+
+
+    private fun hashPin(pin: String) = MessageDigest.getInstance("SHA-256")
+        .digest(("Desafio1000:" + pin).toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
+
+    private fun askPin(titleText: String, message: String, action: (String) -> Unit) {
+        val field = EditText(this).apply {
+            hint = "Senha de 6 dígitos"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            filters = arrayOf(android.text.InputFilter.LengthFilter(6))
+        }
+        val box = LinearLayout(this).apply { setPadding(28, 8, 28, 0); addView(field) }
+        val dialog = AlertDialog.Builder(this).setTitle(titleText).setMessage(message)
+            .setView(box).setNegativeButton("Cancelar", null)
+            .setPositiveButton("Continuar", null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val pin = field.text.toString()
+                if (!pin.matches(Regex("\\d{6}"))) field.error = "Digite 6 números"
+                else { dialog.dismiss(); action(pin) }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun setupPin() {
+        askPin("Criar senha", "Escolha uma senha numérica de 6 dígitos.") { first ->
+            askPin("Confirmar senha", "Digite novamente a senha.") { second ->
+                if (first != second) {
+                    Toast.makeText(this, "As senhas não conferem.", Toast.LENGTH_LONG).show()
+                    setupPin()
+                } else {
+                    prefs.edit().putString("pin_hash", hashPin(first)).apply()
+                    loadRecords(); buildScreen()
+                }
+            }
+        }
+    }
+
+    private fun loginPin() {
+        val remaining = prefs.getLong("lock_until", 0L) - SystemClock.elapsedRealtime()
+        if (remaining > 0) {
+            AlertDialog.Builder(this).setTitle("Acesso bloqueado")
+                .setMessage("Aguarde ${(remaining + 999) / 1000} segundos.")
+                .setPositiveButton("OK") { _, _ -> finish() }.setCancelable(false).show()
+            return
+        }
+        askPin("Desafio 1000 protegido", "Digite sua senha de 6 dígitos.") { pin ->
+            if (hashPin(pin) == prefs.getString("pin_hash", "")) {
+                prefs.edit().putInt("failed_attempts", 0).apply()
+                loadRecords(); buildScreen()
+            } else {
+                val count = prefs.getInt("failed_attempts", 0) + 1
+                if (count >= 2) {
+                    prefs.edit().putInt("failed_attempts", 0)
+                        .putLong("lock_until", SystemClock.elapsedRealtime() + 30_000L).apply()
+                    AlertDialog.Builder(this).setTitle("Duas tentativas incorretas")
+                        .setMessage("Acesso bloqueado por 30 segundos. Se quiser, abra a câmera; ela ficará visivelmente aberta e só tira foto se você tocar no botão.")
+                        .setPositiveButton("Abrir câmera") { _, _ ->
+                            val camera = Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE)
+                            if (camera.resolveActivity(packageManager) != null) startActivityForResult(camera, 701)
+                            else { Toast.makeText(this, "Câmera indisponível.", Toast.LENGTH_LONG).show(); finish() }
+                        }.setNegativeButton("Fechar") { _, _ -> finish() }
+                        .setCancelable(false).show()
+                } else {
+                    prefs.edit().putInt("failed_attempts", count).apply()
+                    AlertDialog.Builder(this).setTitle("Senha incorreta")
+                        .setMessage("Resta uma tentativa antes do bloqueio.")
+                        .setPositiveButton("Tentar novamente") { _, _ -> loginPin() }
+                        .setNegativeButton("Sair") { _, _ -> finish() }.show()
+                }
+            }
+        }
+    }
+
+    private fun changePin() {
+        askPin("Alterar senha", "Digite a senha atual.") { old ->
+            if (hashPin(old) != prefs.getString("pin_hash", "")) {
+                Toast.makeText(this, "Senha atual incorreta.", Toast.LENGTH_LONG).show()
+            } else askPin("Nova senha", "Escolha uma nova senha de 6 dígitos.") { next ->
+                askPin("Confirmar nova senha", "Digite novamente.") { confirm ->
+                    if (next == confirm) {
+                        prefs.edit().putString("pin_hash", hashPin(next)).apply()
+                        Toast.makeText(this, "Senha alterada!", Toast.LENGTH_LONG).show()
+                    } else Toast.makeText(this, "As senhas não conferem.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     private fun loadRecords() {
@@ -57,6 +149,10 @@ class MainActivity : Activity() {
             setTypeface(null, android.graphics.Typeface.BOLD)
         }
         root.addView(title)
+        root.addView(Button(this).apply {
+            text = "Configurações • Alterar senha"
+            setOnClickListener { changePin() }
+        })
         summary = TextView(this).apply {
             textSize = 16f
             setTextColor(Color.DKGRAY)
