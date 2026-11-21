@@ -87,7 +87,8 @@ class MainActivity : Activity() {
                 textSize = 14f
                 gravity = Gravity.CENTER
                 setTextColor(Color.WHITE)
-                setPadding(2, 12, 2, 12)
+                setPadding(2, 2, 2, 2)
+                includeFontPadding = true
                 setBackgroundColor(if (saved) green else blue)
                 setOnClickListener { toggle(n) }
                 setOnLongClickListener { editRecord(n); true }
