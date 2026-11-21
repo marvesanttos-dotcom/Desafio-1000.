@@ -127,6 +127,33 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun showSettings() {
+        AlertDialog.Builder(this)
+            .setTitle("⚙️ Configurações")
+            .setItems(arrayOf("Alterar senha", "Como usar o aplicativo")) { _, which ->
+                when (which) {
+                    0 -> changePin()
+                    1 -> showHowToUse()
+                }
+            }
+            .setNegativeButton("Fechar", null)
+            .show()
+    }
+
+    private fun showHowToUse() {
+        AlertDialog.Builder(this)
+            .setTitle("Como usar o Desafio 1000")
+            .setMessage(
+                "1. Toque em um número para marcar aquele valor como guardado.\n\n" +
+                "2. O número ficará verde e o total será atualizado.\n\n" +
+                "3. Pressione e segure um número verde para consultar ou editar data, hora e observação.\n\n" +
+                "4. Para desmarcar um valor, toque nele e confirme ou use a opção Desmarcar no registro.\n\n" +
+                "5. Use ⚙️ para alterar sua senha ou abrir estas instruções."
+            )
+            .setPositiveButton("Entendi", null)
+            .show()
+    }
+
     private fun loadRecords() {
         for (n in 1..1000) {
             val raw = prefs.getString("n$n", null) ?: continue
@@ -138,7 +165,7 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(18, 20, 18, 12)
-            setBackgroundColor(Color.rgb(247, 249, 252))
+            setBackgroundColor(Color.WHITE)
         }
         val title = TextView(this).apply {
             text = "DESAFIO 1000"
@@ -148,11 +175,21 @@ class MainActivity : Activity() {
             setPadding(0, 8, 0, 12)
             setTypeface(null, android.graphics.Typeface.BOLD)
         }
-        root.addView(title)
-        root.addView(Button(this).apply {
-            text = "Configurações • Alterar senha"
-            setOnClickListener { changePin() }
-        })
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        header.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+        val settings = TextView(this).apply {
+            text = "⚙️"
+            textSize = 27f
+            gravity = Gravity.CENTER
+            contentDescription = "Configurações"
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            setOnClickListener { showSettings() }
+        }
+        header.addView(settings, LinearLayout.LayoutParams(dp(52), dp(52)))
+        root.addView(header)
         summary = TextView(this).apply {
             textSize = 16f
             setTextColor(Color.DKGRAY)
@@ -160,13 +197,6 @@ class MainActivity : Activity() {
             setPadding(8, 8, 8, 16)
         }
         root.addView(summary)
-        val hint = TextView(this).apply {
-            text = "Toque em um número para marcar como guardado. Segure para ver ou editar data, hora e observação."
-            textSize = 13f
-            setTextColor(Color.DKGRAY)
-            setPadding(4, 0, 4, 12)
-        }
-        root.addView(hint)
         val scroll = ScrollView(this)
         grid = GridLayout(this).apply { columnCount = 5; useDefaultMargins = true }
         scroll.addView(grid)
@@ -183,13 +213,13 @@ class MainActivity : Activity() {
                 text = n.toString()
                 textSize = 28f
                 gravity = Gravity.CENTER
-                setTextColor(Color.WHITE)
+                setTextColor(if (saved) Color.WHITE else Color.rgb(55, 65, 80))
                 setPadding(2, 2, 2, 2)
                 includeFontPadding = true
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.RECTANGLE
                     cornerRadius = dp(9).toFloat()
-                    setColor(if (saved) green else blue)
+                    setColor(if (saved) green else Color.rgb(242, 244, 247))
                 }
                 setOnClickListener { toggle(n) }
                 setOnLongClickListener { editRecord(n); true }
